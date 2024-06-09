@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,10 +12,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
 
 var (
 	configFileFlag = flag.String("config", "domains.conf", "Path to Domain config file")
+	certFlag       = flag.String("cert", "", "Path to cert file")
+	keyFlag        = flag.String("key", "", "Path to key file")
+	portFlag       = flag.Int("port", 80, "Port")
 )
 
 func main() {
@@ -37,15 +43,16 @@ func main() {
 			return
 		}
 
-		rDump, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			panic(err)
+		if !dumpRequest(w, r) {
+			return
 		}
 
 		subUrlPath := r.URL.RequestURI()
 		req, err := http.NewRequest(r.Method, fmt.Sprintf("http://localhost:%d%s", port, subUrlPath), r.Body)
 		if err != nil {
-			panic(err)
+			log.Error().Err(err).Str("path", subUrlPath).Int("port", port).Msg("Could not create request")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 
 		for name, values := range r.Header {
@@ -55,18 +62,18 @@ func main() {
 		}
 
 		for _, cookie := range r.Cookies() {
-			// fmt.Printf("Setting cookie, Name: %s, Value: %s\n", cookie.Name, cookie.Value)
 			req.AddCookie(cookie)
 		}
 
-		reqDump, err := httputil.DumpRequestOut(req, true)
-		if err != nil {
-			panic(err)
+		if !dumpRequest(w, req) {
+			return
 		}
 
 		res, err := client.Do(req)
 		if err != nil {
-			panic(err)
+			log.Error().Err(err).Str("path", subUrlPath).Int("port", port).Msg("Could not complete request")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 
 		cookies := res.Cookies()
@@ -75,9 +82,8 @@ func main() {
 			http.SetCookie(w, cookie)
 		}
 
-		resDump, err := httputil.DumpResponse(res, true)
-		if err != nil {
-			panic(err)
+		if !dumpResponse(w, res) {
+			return
 		}
 
 		if loc, err := res.Location(); !errors.Is(err, http.ErrNoLocation) {
@@ -91,29 +97,70 @@ func main() {
 			w.WriteHeader(res.StatusCode)
 
 			body, err := io.ReadAll(res.Body)
-			if err != nil {
-				panic(err)
-			}
 			defer res.Body.Close()
+			if err != nil {
+				log.Error().Err(err).Msg("Could not read body")
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 
 			_, err = w.Write(body)
 			if err != nil {
-				panic(err)
+				log.Error().Err(err).Msg("Could not write body")
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
-
 		}
-
-		if r.Method == "POST" {
-			fmt.Print(string(rDump) + "\n\n")
-			fmt.Print(string(reqDump) + "\n\n")
-			fmt.Print(string(resDump) + "\n")
-			fmt.Println("----------------------------------------")
-		}
-
 	})
 
-	fmt.Println("Starting server on :443")
-	http.ListenAndServeTLS(":443", "server.crt", "server.key", nil)
+	server := http.Server{
+		Addr: fmt.Sprintf(":%d", *portFlag),
+	}
+
+	if *certFlag != "" && *keyFlag != "" {
+		server.TLSConfig = &tls.Config{
+			GetCertificate: func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				cert, err := tls.LoadX509KeyPair(*certFlag, *keyFlag)
+				if err != nil {
+					return nil, err
+				}
+				return &cert, err
+			},
+		}
+		log.Info().Int("port", *portFlag).Str("cert", *certFlag).Str("key", *keyFlag).Msg("Starting server")
+		err := server.ListenAndServeTLS("", "")
+		log.Fatal().Err(err).Str("cert", *certFlag).Str("key", *keyFlag).Int("port", *portFlag).Msg("Could not start server")
+	} else {
+		log.Info().Int("port", *portFlag).Msg("Starting server")
+		err := server.ListenAndServe()
+		log.Fatal().Err(err).Int("port", *portFlag).Msg("Could not start server")
+	}
+}
+
+func dumpRequest(w http.ResponseWriter, r *http.Request) bool {
+	if e := log.Debug(); e.Enabled() {
+		rDump, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			log.Error().Err(err).Msg("Could not dump request")
+			w.WriteHeader(http.StatusInternalServerError)
+			return false
+		}
+		log.Debug().Str("dump", string(rDump)).Send()
+	}
+	return true
+}
+
+func dumpResponse(w http.ResponseWriter, r *http.Response) bool {
+	if e := log.Debug(); e.Enabled() {
+		dump, err := httputil.DumpResponse(r, true)
+		if err != nil {
+			log.Error().Err(err).Msg("Could not dump response")
+			w.WriteHeader(http.StatusInternalServerError)
+			return false
+		}
+		log.Debug().Str("dump", string(dump)).Send()
+	}
+	return true
 }
 
 func loadConfig(path string) (map[string]int, error) {
