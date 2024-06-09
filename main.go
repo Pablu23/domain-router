@@ -44,7 +44,8 @@ func main() {
 		},
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		port, ok := domains[r.Host]
 		if !ok {
 			w.WriteHeader(http.StatusOK)
@@ -122,7 +123,8 @@ func main() {
 	})
 
 	server := http.Server{
-		Addr: fmt.Sprintf(":%d", *portFlag),
+		Addr:    fmt.Sprintf(":%d", *portFlag),
+		Handler: RequestLogger(mux),
 	}
 
 	if *certFlag != "" && *keyFlag != "" {
@@ -170,7 +172,7 @@ func setupLogging() {
 }
 
 func dumpRequest(w http.ResponseWriter, r *http.Request) bool {
-	if e := log.Debug(); e.Enabled() {
+	if e := log.Debug(); e.Enabled() && r.Method == "POST" {
 		rDump, err := httputil.DumpRequest(r, true)
 		if err != nil {
 			log.Error().Err(err).Msg("Could not dump request")
