@@ -13,7 +13,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var (
@@ -21,13 +23,19 @@ var (
 	certFlag       = flag.String("cert", "", "Path to cert file")
 	keyFlag        = flag.String("key", "", "Path to key file")
 	portFlag       = flag.Int("port", 80, "Port")
+	prettyLogsFlag = flag.Bool("pretty", false, "Pretty print? Default is json")
+	logPathFlag    = flag.String("log", "", "Path to logfile, default is stderr")
+	logLevelFlag   = flag.String("log-level", "info", "Log Level")
 )
 
 func main() {
 	flag.Parse()
+
+	setupLogging()
+
 	domains, err := loadConfig(*configFileFlag)
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Str("path", *configFileFlag).Msg("Could not load Config")
 	}
 
 	client := &http.Client{
@@ -134,6 +142,30 @@ func main() {
 		log.Info().Int("port", *portFlag).Msg("Starting server")
 		err := server.ListenAndServe()
 		log.Fatal().Err(err).Int("port", *portFlag).Msg("Could not start server")
+	}
+}
+
+func setupLogging() {
+	logLevel, err := zerolog.ParseLevel(*logLevelFlag)
+	if err != nil {
+		log.Fatal().Err(err).Str("level", *logLevelFlag).Msg("Could not parse string to level")
+	}
+
+	zerolog.SetGlobalLevel(logLevel)
+	if *prettyLogsFlag {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	}
+
+	if *logPathFlag != "" {
+		var console io.Writer = os.Stderr
+		if *prettyLogsFlag {
+			console = zerolog.ConsoleWriter{Out: os.Stderr}
+		}
+		log.Logger = log.Output(zerolog.MultiLevelWriter(console, &lumberjack.Logger{
+			Filename:   *logPathFlag,
+			MaxAge:     14,
+			MaxBackups: 10,
+		}))
 	}
 }
 
