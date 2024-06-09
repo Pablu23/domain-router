@@ -185,14 +185,14 @@ func dumpRequest(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func dumpResponse(w http.ResponseWriter, r *http.Response) bool {
-	if e := log.Debug(); e.Enabled() {
+	if e := log.Trace(); e.Enabled() {
 		dump, err := httputil.DumpResponse(r, true)
 		if err != nil {
 			log.Error().Err(err).Msg("Could not dump response")
 			w.WriteHeader(http.StatusInternalServerError)
 			return false
 		}
-		log.Debug().Str("dump", string(dump)).Send()
+		log.Trace().Str("dump", string(dump)).Send()
 	}
 	return true
 }
