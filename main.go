@@ -20,7 +20,11 @@ func main() {
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		port := domains[r.Host]
+		port, ok := domains[r.Host]
+    if !ok {
+      w.WriteHeader(http.StatusOK)
+      return
+    }
 
 		rDump, err := httputil.DumpRequest(r, true)
 		if err != nil {
