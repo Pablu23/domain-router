@@ -97,6 +97,6 @@ func main() {
 
 	})
 
-	fmt.Println("Starting server on :80")
-	http.ListenAndServe(":80", nil)
+	fmt.Println("Starting server on :443")
+	http.ListenAndServeTLS(":443", "server.crt", "server.key", nil)
 }
