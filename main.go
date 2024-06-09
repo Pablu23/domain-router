@@ -1,17 +1,28 @@
 package main
 
 import (
+	"bufio"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"strconv"
+	"strings"
+)
+
+var (
+	configFileFlag = flag.String("config", "domains.conf", "Path to Domain config file")
 )
 
 func main() {
-	domains := make(map[string]int)
-	domains["test.localhost"] = 8181
-	domains["test2.localhost"] = 8282
+	flag.Parse()
+	domains, err := loadConfig(*configFileFlag)
+	if err != nil {
+		panic(err)
+	}
 
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -21,10 +32,10 @@ func main() {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		port, ok := domains[r.Host]
-    if !ok {
-      w.WriteHeader(http.StatusOK)
-      return
-    }
+		if !ok {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 
 		rDump, err := httputil.DumpRequest(r, true)
 		if err != nil {
@@ -103,4 +114,29 @@ func main() {
 
 	fmt.Println("Starting server on :443")
 	http.ListenAndServeTLS(":443", "server.crt", "server.key", nil)
+}
+
+func loadConfig(path string) (map[string]int, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+
+	m := make(map[string]int)
+	for scanner.Scan() {
+		line := scanner.Text()
+		params := strings.Split(line, ";")
+		if len(params) <= 1 {
+			return nil, errors.New("Line does not contain enough Parameters")
+		}
+		port, err := strconv.Atoi(params[1])
+		if err != nil {
+			return nil, err
+		}
+		m[params[0]] = port
+	}
+
+	return m, nil
 }
