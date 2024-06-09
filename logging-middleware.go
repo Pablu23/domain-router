@@ -30,6 +30,11 @@ func RequestLogger(next http.Handler) http.Handler {
 		lrw := negroni.NewResponseWriter(w)
 		next.ServeHTTP(lrw, r)
 
-		log.Info().Str("host", r.Host).Str("uri", r.RequestURI).Str("method", r.Method).Int("status", lrw.Status()).Int("size", lrw.Size()).Str("duration", time.Since(start).String()).Msg("Received Request")
+		duration := time.Since(start)
+		if duration.Milliseconds() > 500 {
+			log.Warn().Str("host", r.Host).Str("uri", r.RequestURI).Str("method", r.Method).Int("status", lrw.Status()).Int("size", lrw.Size()).Str("duration", time.Since(start).String()).Msg("Slow Request")
+		} else {
+			log.Info().Str("host", r.Host).Str("uri", r.RequestURI).Str("method", r.Method).Int("status", lrw.Status()).Int("size", lrw.Size()).Str("duration", time.Since(start).String()).Msg("Received Request")
+		}
 	})
 }
