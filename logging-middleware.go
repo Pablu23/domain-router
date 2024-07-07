@@ -1,4 +1,4 @@
-package main
+package domainrouter
 
 import (
 	"net/http"
@@ -8,25 +8,10 @@ import (
 	"github.com/urfave/negroni"
 )
 
-// type loggingResponseWriter struct {
-// 	http.ResponseWriter
-// 	statusCode int
-// }
-//
-// func NewLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
-// 	return &loggingResponseWriter{w, http.StatusOK}
-// }
-//
-// func (lrw *loggingResponseWriter) WriteHeader(code int) {
-// 	lrw.statusCode = code
-// 	lrw.ResponseWriter.WriteHeader(code)
-// }
-
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		// lrw := NewLoggingResponseWriter(w)
 		lrw := negroni.NewResponseWriter(w)
 		next.ServeHTTP(lrw, r)
 
