@@ -4,13 +4,14 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog/log"
 )
 
 type Limiter struct {
-	current map[string]int
+	current map[string]*atomic.Int64
 	max     int
 	ticker  *time.Ticker
 	refill  int
@@ -20,7 +21,7 @@ type Limiter struct {
 
 func NewLimiter(maxRequests int, refills int, refillInterval time.Duration) Limiter {
 	return Limiter{
-		current: make(map[string]int),
+		current: make(map[string]*atomic.Int64),
 		max:     maxRequests,
 		ticker:  time.NewTicker(refillInterval),
 		refill:  refills,
@@ -39,30 +40,25 @@ func (l *Limiter) Manage() {
 		select {
 		case ip := <-l.c:
 			l.m.Lock()
-			if _, ok := l.current[ip]; ok {
-				l.current[ip] += 1
+			if counter, ok := l.current[ip]; ok {
+				counter.Add(1)
 			} else {
-				l.current[ip] = 1
+				counter := &atomic.Int64{}
+				l.current[ip] = counter
 			}
 			l.m.Unlock()
 		case <-l.ticker.C:
-			l.m.Lock()
-			start := time.Now()
-			count := len(l.current)
-			deleted := 0
-			for ip, times := range l.current {
-				if times-l.refill <= 0 {
-					deleted += 1
-					delete(l.current, ip)
-				} else {
-					l.current[ip] -= l.refill
+			l.m.RLock()
+			for ip := range l.current {
+				n := l.current[ip].Add(int64(-l.refill))
+				if n < 0 {
+					l.current[ip].Store(0)
+					n = 0
 				}
+				log.Debug().Int64("bucket", n).Str("remote", ip).Msg("Updated limit")
 			}
-			l.m.Unlock()
-			elapsed := time.Since(start)
-			if count >= 1 {
-				log.Info().Int("ips", count).Int("forgotten", deleted).Str("duration", elapsed.String()).Msg("Refill rate limit")
-			}
+			l.m.RUnlock()
+			log.Debug().Msg("Refreshed Limits")
 		}
 	}
 }
@@ -73,7 +69,7 @@ func (l *Limiter) RateLimiter(next http.Handler) http.Handler {
 		l.m.RLock()
 		count, ok := l.current[addr]
 		l.m.RUnlock()
-		if ok && count >= l.max {
+		if ok && int(count.Load()) >= l.max {
 			hj, ok := w.(http.Hijacker)
 			if !ok {
 				r.Body.Close()
@@ -82,7 +78,7 @@ func (l *Limiter) RateLimiter(next http.Handler) http.Handler {
 			}
 			conn, _, err := hj.Hijack()
 			if err != nil {
-				panic(err)
+				log.Error().Err(err).Str("host", r.Host).Str("uri", r.RequestURI).Str("method", r.Method).Str("remote", addr).Msg("Could not hijack connection")
 			}
 
 			log.Warn().Str("host", r.Host).Str("uri", r.RequestURI).Str("method", r.Method).Str("remote", addr).Msg("Rate limited")

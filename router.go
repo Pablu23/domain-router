@@ -7,33 +7,18 @@ import (
 	"net/http"
 	"net/http/httputil"
 
+	"github.com/pablu23/domain-router/util"
 	"github.com/rs/zerolog/log"
 )
 
-// ConstMap for disallowing change of elements during runtime, for threadsafty
-type constMap[K comparable, V any] struct {
-	dirty map[K]V
-}
-
-func NewConstMap[K comparable, V any](m map[K]V) *constMap[K, V] {
-	return &constMap[K, V]{
-		dirty: m,
-	}
-}
-
-func (m *constMap[K, V]) Get(key K) (value V, ok bool) {
-	value, ok = m.dirty[key]
-	return value, ok
-}
-
 type Router struct {
-	domains *constMap[string, int]
+	domains *util.ImmutableMap[string, int]
 	client  *http.Client
 }
 
 func New(domains map[string]int, client *http.Client) Router {
 	return Router{
-		domains: NewConstMap(domains),
+		domains: util.NewImmutableMap(domains),
 		client:  client,
 	}
 }
@@ -62,6 +47,7 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 			req.Header.Set(name, value)
 		}
 	}
+	req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 
 	for _, cookie := range r.Cookies() {
 		req.AddCookie(cookie)
@@ -80,7 +66,6 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 
 	cookies := res.Cookies()
 	for _, cookie := range cookies {
-		// fmt.Printf("Setting cookie, Name: %s, Value: %s\n", cookie.Name, cookie.Value)
 		http.SetCookie(w, cookie)
 	}
 
@@ -116,14 +101,14 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 }
 
 func dumpRequest(w http.ResponseWriter, r *http.Request) bool {
-	if e := log.Debug(); e.Enabled() && r.Method == "POST" {
+	if e := log.Trace(); e.Enabled() && r.Method == "POST" {
 		rDump, err := httputil.DumpRequest(r, true)
 		if err != nil {
 			log.Error().Err(err).Msg("Could not dump request")
 			w.WriteHeader(http.StatusInternalServerError)
 			return false
 		}
-		log.Debug().Str("dump", string(rDump)).Send()
+		log.Trace().Str("dump", string(rDump)).Msg("Dumping Request")
 	}
 	return true
 }
@@ -136,7 +121,7 @@ func dumpResponse(w http.ResponseWriter, r *http.Response) bool {
 			w.WriteHeader(http.StatusInternalServerError)
 			return false
 		}
-		log.Trace().Str("dump", string(dump)).Send()
+		log.Trace().Str("dump", string(dump)).Msg("Dumping Response")
 	}
 	return true
 }
