@@ -14,6 +14,7 @@ import (
 	"time"
 
 	domainrouter "github.com/pablu23/domain-router"
+	"github.com/pablu23/domain-router/middleware"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -49,12 +50,17 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", router.Route)
 
-	limiter := domainrouter.NewLimiter(3, 250, 1*time.Minute)
+	limiter := middleware.NewLimiter(10, 250, 30*time.Second, 1*time.Minute)
 	limiter.Start()
+
+	pipeline := middleware.Pipeline(
+		limiter.RateLimiter,
+		middleware.RequestLogger,
+	)
 
 	server := http.Server{
 		Addr:    fmt.Sprintf(":%d", *portFlag),
-		Handler: limiter.RateLimiter(domainrouter.RequestLogger(mux)),
+		Handler: pipeline(mux),
 	}
 
 	if *certFlag != "" && *keyFlag != "" {

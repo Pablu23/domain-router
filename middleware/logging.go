@@ -1,4 +1,4 @@
-package domainrouter
+package middleware
 
 import (
 	"net/http"
@@ -9,6 +9,7 @@ import (
 )
 
 func RequestLogger(next http.Handler) http.Handler {
+  log.Info().Msg("Enabling Logging")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
