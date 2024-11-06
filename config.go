@@ -6,14 +6,19 @@ type Config struct {
 		HealthEndpoint string `yaml:"healthz"`
 	} `yaml:"general"`
 	Server struct {
-		Port     int    `yaml:"port"`
-		CertFile string `yaml:"certFile"`
-		KeyFile  string `yaml:"keyFile"`
+		Port int `yaml:"port"`
+		Ssl  struct {
+			Enabled  bool   `yaml:"enabled"`
+			CertFile string `yaml:"certFile"`
+			KeyFile  string `yaml:"keyFile"`
+		} `yaml:"ssl"`
 	} `yaml:"server"`
 	Hosts []struct {
 		Port    int      `yaml:"port"`
+		Remote  string   `yaml:"remote"`
 		Domains []string `yaml:"domains"`
 		Public  bool     `yaml:"public"`
+		Secure  bool     `yaml:"secure"`
 	} `yaml:"hosts"`
 	RateLimit struct {
 		Enabled       bool   `yaml:"enabled"`
@@ -25,7 +30,12 @@ type Config struct {
 	Logging struct {
 		Level    string `yaml:"level"`
 		Pretty   bool   `yaml:"pretty"`
-		Path     string `yaml:"path"`
 		Requests bool   `yaml:"requests"`
+		File     struct {
+			Enabled    bool   `yaml:"enabled"`
+			Path       string `yaml:"path"`
+			MaxAge     int    `yaml:"maxAge"`
+			MaxBackups int    `yamls:"maxBackups"`
+		} `yaml:"file"`
 	} `yaml:"logging"`
 }

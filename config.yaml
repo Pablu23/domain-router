@@ -1,32 +1,65 @@
-general:
-  announce: true
-  healthz: healthz
-
 server:
   port: 443
-  certFile: server.crt
-  keyFile: server.key
+  ssl:
+    enabled: true
+    certFile: server.crt
+    keyFile: server.key
+
+
+logging:
+  level: info
+  # Pretty print for human consumption otherwise json
+  pretty: true
+  # Log incoming requests
+  requests: true
+  # Log to file aswell as stderr
+  file:
+    enabled: false
+    maxAge: 14
+    maxBackups: 10
+    path: ~/logs/router
+
 
 rateLimit:
   enabled: true
+  # How many requests per ip adress are allowed
   bucketSize: 50
+  # How many requests per ip address are refilled
   refillSize: 10
+  # How often requests per ip address are refilled
   refillTime: 1m
+  # How often Ip Addresses get cleaned up (only ip addresses with max allowed requests are cleaned up)
   cleanupTime: 5m
 
+
 hosts:
-  - port: 8181
+    # Remote address to request
+  - remote: localhost
+    # Port on which to request
+    port: 8181
+    # Health check if announce is true
+    public: true
+    # Domains which get redirected to host
     domains:
       - localhost
       - test.localhost
-      - test2.localhost
-    public: true
-  - port: 8282
+
+  - remote: localhost
+    port: 8282
+    public: false
     domains:
       - private.localhost
-    public: false
 
-logging:
-  level: debug
-  pretty: true
-  requests: true
+  - remote: www.google.com
+    port: 443
+    public: false
+    # Uses https under the hood to communicate with the remote host
+    secure: true
+    domains:
+      - google.localhost
+
+general:
+  # Expose health endpoint, that requests health endpoints from hosts which are public
+  announce: true
+  # Path to health endpoint on router, is allowed to conflict with hosts, but overwrites specific host endpoint
+  healthz: healthz

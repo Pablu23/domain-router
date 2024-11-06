@@ -14,15 +14,27 @@ import (
 
 type Router struct {
 	config  *Config
-	domains *util.ImmutableMap[string, int]
-	client  *http.Client
+	domains *util.ImmutableMap[string, struct {
+		Port   int
+		Remote string
+		Secure bool
+	}]
+	client *http.Client
 }
 
 func New(config *Config, client *http.Client) Router {
-	m := make(map[string]int)
+	m := make(map[string]struct {
+		Port   int
+		Remote string
+		Secure bool
+	})
 	for _, host := range config.Hosts {
 		for _, domain := range host.Domains {
-			m[domain] = host.Port
+			m[domain] = struct {
+				Port   int
+				Remote string
+				Secure bool
+			}{host.Port, host.Remote, host.Secure}
 		}
 	}
 
@@ -79,6 +91,7 @@ func (router *Router) Healthz(w http.ResponseWriter, r *http.Request) {
 func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 	port, ok := router.domains.Get(r.Host)
 	if !ok {
+		log.Warn().Str("host", r.Host).Msg("Could not find Host")
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -88,9 +101,16 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subUrlPath := r.URL.RequestURI()
-	req, err := http.NewRequest(r.Method, fmt.Sprintf("http://localhost:%d%s", port, subUrlPath), r.Body)
+	var url string
+	if port.Secure {
+		url = fmt.Sprintf("https://%s:%d%s", port.Remote, port.Port, subUrlPath)
+	} else {
+		url = fmt.Sprintf("http://%s:%d%s", port.Remote, port.Port, subUrlPath)
+	}
+
+	req, err := http.NewRequest(r.Method, url, r.Body)
 	if err != nil {
-		log.Error().Err(err).Str("path", subUrlPath).Int("port", port).Msg("Could not create request")
+		log.Error().Err(err).Str("remote", port.Remote).Str("path", subUrlPath).Int("port", port.Port).Msg("Could not create request")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -112,7 +132,7 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 
 	res, err := router.client.Do(req)
 	if err != nil {
-		log.Error().Err(err).Str("path", subUrlPath).Int("port", port).Msg("Could not complete request")
+		log.Error().Err(err).Str("remote", port.Remote).Str("path", subUrlPath).Int("port", port.Port).Msg("Could not complete request")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -126,31 +146,44 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if loc, err := res.Location(); !errors.Is(err, http.ErrNoLocation) {
-		http.Redirect(w, r, loc.RequestURI(), http.StatusFound)
-	} else {
-		for name, values := range res.Header {
-			for _, value := range values {
-				w.Header().Set(name, value)
-			}
-		}
-		w.WriteHeader(res.StatusCode)
+	// Exit early because its a redirect
+	if !handleLocation(w, r, res) {
+		return
+	}
 
-		body, err := io.ReadAll(res.Body)
-		defer res.Body.Close()
-		if err != nil {
-			log.Error().Err(err).Msg("Could not read body")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		_, err = w.Write(body)
-		if err != nil {
-			log.Error().Err(err).Msg("Could not write body")
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+	for name, values := range res.Header {
+		for _, value := range values {
+			w.Header().Set(name, value)
 		}
 	}
+	w.WriteHeader(res.StatusCode)
+
+	body, err := io.ReadAll(res.Body)
+	defer res.Body.Close()
+	if err != nil {
+		log.Error().Err(err).Msg("Could not read body")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write(body)
+	if err != nil {
+		log.Error().Err(err).Msg("Could not write body")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func handleLocation(w http.ResponseWriter, r *http.Request, res *http.Response) bool {
+	if loc, err := res.Location(); err == nil {
+		http.Redirect(w, r, loc.RequestURI(), http.StatusFound)
+		return false
+	} else if !errors.Is(err, http.ErrNoLocation) {
+		log.Error().Err(err).Msg("Could not extract location")
+		w.WriteHeader(http.StatusInternalServerError)
+		return false
+	}
+	return true
 }
 
 func dumpRequest(w http.ResponseWriter, r *http.Request) bool {
