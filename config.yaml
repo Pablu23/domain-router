@@ -1,0 +1,32 @@
+general:
+  announce: true
+  healthz: healthz
+
+server:
+  port: 443
+  certFile: server.crt
+  keyFile: server.key
+
+rateLimit:
+  enabled: true
+  bucketSize: 50
+  refillSize: 10
+  refillTime: 1m
+  cleanupTime: 5m
+
+hosts:
+  - port: 8181
+    domains:
+      - localhost
+      - test.localhost
+      - test2.localhost
+    public: true
+  - port: 8282
+    domains:
+      - private.localhost
+    public: false
+
+logging:
+  level: debug
+  pretty: true
+  requests: true

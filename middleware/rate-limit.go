@@ -82,7 +82,7 @@ func (l *Limiter) Manage() {
 }
 
 func (l *Limiter) RateLimiter(next http.Handler) http.Handler {
-	log.Info().Msg("Enabling Ratelimits")
+	log.Info().Int("bucket_size", l.bucketSize).Int("bucket_refill", l.bucketRefill).Msg("Enabling Ratelimits")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		addr := strings.Split(r.RemoteAddr, ":")[0]
 		l.rwLock.RLock()

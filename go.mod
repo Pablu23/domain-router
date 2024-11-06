@@ -10,4 +10,5 @@ require (
 	github.com/urfave/negroni v1.0.0
 	golang.org/x/sys v0.12.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
+	gopkg.in/yaml.v3 v3.0.1
 )

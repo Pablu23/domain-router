@@ -1,16 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"crypto/tls"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	domainrouter "github.com/pablu23/domain-router"
@@ -18,55 +15,52 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var (
-	configFileFlag = flag.String("config", "domains.conf", "Path to Domain config file")
-	certFlag       = flag.String("cert", "", "Path to cert file")
-	keyFlag        = flag.String("key", "", "Path to key file")
-	portFlag       = flag.Int("port", 80, "Port")
-	prettyLogsFlag = flag.Bool("pretty", false, "Pretty print? Default is json")
-	logPathFlag    = flag.String("log", "", "Path to logfile, default is stderr")
-	logLevelFlag   = flag.String("log-level", "info", "Log Level")
+	configFileFlag = flag.String("config", "config.yaml", "Path to config file")
 )
 
 func main() {
 	flag.Parse()
 
-	setupLogging()
-
-	domains, err := loadConfig(*configFileFlag)
+	config, err := loadConfig(*configFileFlag)
 	if err != nil {
 		log.Fatal().Err(err).Str("path", *configFileFlag).Msg("Could not load Config")
 	}
 
+	setupLogging(config)
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
 
-	router := domainrouter.New(domains, client)
+	router := domainrouter.New(config, client)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", router.Route)
 
-	limiter := middleware.NewLimiter(10, 250, 30*time.Second, 1*time.Minute)
-	limiter.Start()
+	if config.General.AnnouncePublic {
+		h, err := url.JoinPath("/", config.General.HealthEndpoint)
+		if err != nil {
+			log.Error().Err(err).Str("endpoint", config.General.HealthEndpoint).Msg("Could not create endpoint path")
+			h = "/healthz"
+		}
+		mux.HandleFunc(h, router.Healthz)
+	}
 
-	pipeline := middleware.Pipeline(
-		limiter.RateLimiter,
-		middleware.RequestLogger,
-	)
+	pipeline := configureMiddleware(config)
 
 	server := http.Server{
-		Addr:    fmt.Sprintf(":%d", *portFlag),
+		Addr:    fmt.Sprintf(":%d", config.Server.Port),
 		Handler: pipeline(mux),
 	}
 
-	if *certFlag != "" && *keyFlag != "" {
+	if config.Server.CertFile != "" && config.Server.KeyFile != "" {
 		server.TLSConfig = &tls.Config{
 			GetCertificate: func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				cert, err := tls.LoadX509KeyPair(*certFlag, *keyFlag)
+				cert, err := tls.LoadX509KeyPair(config.Server.CertFile, config.Server.KeyFile)
 				if err != nil {
 					return nil, err
 				}
@@ -74,61 +68,79 @@ func main() {
 			},
 		}
 
-		log.Info().Int("port", *portFlag).Str("cert", *certFlag).Str("key", *keyFlag).Msg("Starting server")
+		log.Info().Int("port", config.Server.Port).Str("cert", config.Server.CertFile).Str("key", config.Server.KeyFile).Msg("Starting server")
 		err := server.ListenAndServeTLS("", "")
-		log.Fatal().Err(err).Str("cert", *certFlag).Str("key", *keyFlag).Int("port", *portFlag).Msg("Could not start server")
+		log.Fatal().Err(err).Str("cert", config.Server.CertFile).Str("key", config.Server.KeyFile).Int("port", config.Server.Port).Msg("Could not start server")
 	} else {
-		log.Info().Int("port", *portFlag).Msg("Starting server")
+		log.Info().Int("port", config.Server.Port).Msg("Starting server")
 		err := server.ListenAndServe()
-		log.Fatal().Err(err).Int("port", *portFlag).Msg("Could not start server")
+		log.Fatal().Err(err).Int("port", config.Server.Port).Msg("Could not start server")
 	}
 }
 
-func setupLogging() {
-	logLevel, err := zerolog.ParseLevel(*logLevelFlag)
+func configureMiddleware(config *domainrouter.Config) middleware.Middleware {
+	middlewares := make([]middleware.Middleware, 0)
+
+	if config.RateLimit.Enabled {
+		refillTicker, err := time.ParseDuration(config.RateLimit.RefillTicker)
+		if err != nil {
+			log.Fatal().Err(err).Str("refill", config.RateLimit.RefillTicker).Msg("Could not parse refill Ticker")
+		}
+
+		cleanupTicker, err := time.ParseDuration(config.RateLimit.CleanupTicker)
+		if err != nil {
+			log.Fatal().Err(err).Str("cleanup", config.RateLimit.CleanupTicker).Msg("Could not parse cleanup Ticker")
+		}
+		limiter := middleware.NewLimiter(config.RateLimit.BucketSize, config.RateLimit.BucketRefill, refillTicker, cleanupTicker)
+		limiter.Start()
+		middlewares = append(middlewares, limiter.RateLimiter)
+	}
+
+	if config.Logging.Requests {
+		middlewares = append(middlewares, middleware.RequestLogger)
+	}
+
+	pipeline := middleware.Pipeline(middlewares...)
+	return pipeline
+}
+
+func setupLogging(config *domainrouter.Config) {
+	logLevel, err := zerolog.ParseLevel(config.Logging.Level)
 	if err != nil {
-		log.Fatal().Err(err).Str("level", *logLevelFlag).Msg("Could not parse string to level")
+		log.Fatal().Err(err).Str("level", config.Logging.Level).Msg("Could not parse string to level")
 	}
 
 	zerolog.SetGlobalLevel(logLevel)
-	if *prettyLogsFlag {
+	if config.Logging.Pretty {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 
-	if *logPathFlag != "" {
+	if config.Logging.Path != "" {
 		var console io.Writer = os.Stderr
-		if *prettyLogsFlag {
+		if config.Logging.Pretty {
 			console = zerolog.ConsoleWriter{Out: os.Stderr}
 		}
 		log.Logger = log.Output(zerolog.MultiLevelWriter(console, &lumberjack.Logger{
-			Filename:   *logPathFlag,
+			Filename:   config.Logging.Path,
 			MaxAge:     14,
 			MaxBackups: 10,
 		}))
 	}
 }
 
-func loadConfig(path string) (map[string]int, error) {
-	file, err := os.Open(path)
+func loadConfig(path string) (*domainrouter.Config, error) {
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
+	defer f.Close()
 
-	m := make(map[string]int)
-	for scanner.Scan() {
-		line := scanner.Text()
-		params := strings.Split(line, ";")
-		if len(params) <= 1 {
-			return nil, errors.New("Line does not contain enough Parameters")
-		}
-		port, err := strconv.Atoi(params[1])
-		if err != nil {
-			return nil, err
-		}
-		m[params[0]] = port
+	var cfg domainrouter.Config
+	decoder := yaml.NewDecoder(f)
+	err = decoder.Decode(&cfg)
+	if err != nil {
+		return nil, err
 	}
 
-	return m, nil
+	return &cfg, err
 }

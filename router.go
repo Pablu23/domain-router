@@ -1,6 +1,7 @@
 package domainrouter
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,15 +13,67 @@ import (
 )
 
 type Router struct {
+	config  *Config
 	domains *util.ImmutableMap[string, int]
 	client  *http.Client
 }
 
-func New(domains map[string]int, client *http.Client) Router {
+func New(config *Config, client *http.Client) Router {
+	m := make(map[string]int)
+	for _, host := range config.Hosts {
+		for _, domain := range host.Domains {
+			m[domain] = host.Port
+		}
+	}
+
 	return Router{
-		domains: util.NewImmutableMap(domains),
+		config:  config,
+		domains: util.NewImmutableMap(m),
 		client:  client,
 	}
+}
+
+func (router *Router) Healthz(w http.ResponseWriter, r *http.Request) {
+	if !router.config.General.AnnouncePublic {
+		http.NotFound(w, r)
+		return
+	}
+
+	result := make([]struct {
+		Domain  string
+		Healthy bool
+	}, 0)
+
+	for _, host := range router.config.Hosts {
+		if !host.Public {
+			continue
+		}
+
+		healthy := true
+		res, err := router.client.Get(fmt.Sprintf("http://localhost:%d/healthz", host.Port))
+		if err != nil {
+			log.Warn().Err(err).Int("port", host.Port).Msg("Unhealthy")
+			healthy = false
+		}
+
+		for _, domain := range host.Domains {
+			result = append(result, struct {
+				Domain  string
+				Healthy bool
+			}{domain, healthy && res.StatusCode == 200})
+		}
+	}
+
+	data, err := json.Marshal(&result)
+	if err != nil {
+		log.Error().Err(err).Msg("Could not json encode Healthz")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(data)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
