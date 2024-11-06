@@ -62,7 +62,14 @@ func (router *Router) Healthz(w http.ResponseWriter, r *http.Request) {
 		}
 
 		healthy := true
-		res, err := router.client.Get(fmt.Sprintf("http://localhost:%d/healthz", host.Port))
+		var url string
+		if host.Secure {
+			url = fmt.Sprintf("https://%s:%d/healthz", host.Remote, host.Port)
+		} else {
+			url = fmt.Sprintf("http://%s:%d/healthz", host.Remote, host.Port)
+		}
+
+		res, err := router.client.Get(url)
 		if err != nil {
 			log.Warn().Err(err).Int("port", host.Port).Msg("Unhealthy")
 			healthy = false
@@ -89,7 +96,7 @@ func (router *Router) Healthz(w http.ResponseWriter, r *http.Request) {
 }
 
 func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
-	port, ok := router.domains.Get(r.Host)
+	host, ok := router.domains.Get(r.Host)
 	if !ok {
 		log.Warn().Str("host", r.Host).Msg("Could not find Host")
 		w.WriteHeader(http.StatusOK)
@@ -102,15 +109,15 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 
 	subUrlPath := r.URL.RequestURI()
 	var url string
-	if port.Secure {
-		url = fmt.Sprintf("https://%s:%d%s", port.Remote, port.Port, subUrlPath)
+	if host.Secure {
+		url = fmt.Sprintf("https://%s:%d%s", host.Remote, host.Port, subUrlPath)
 	} else {
-		url = fmt.Sprintf("http://%s:%d%s", port.Remote, port.Port, subUrlPath)
+		url = fmt.Sprintf("http://%s:%d%s", host.Remote, host.Port, subUrlPath)
 	}
 
 	req, err := http.NewRequest(r.Method, url, r.Body)
 	if err != nil {
-		log.Error().Err(err).Str("remote", port.Remote).Str("path", subUrlPath).Int("port", port.Port).Msg("Could not create request")
+		log.Error().Err(err).Bool("secure", host.Secure).Str("remote", host.Remote).Str("path", subUrlPath).Int("port", host.Port).Msg("Could not create request")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -132,7 +139,7 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 
 	res, err := router.client.Do(req)
 	if err != nil {
-		log.Error().Err(err).Str("remote", port.Remote).Str("path", subUrlPath).Int("port", port.Port).Msg("Could not complete request")
+		log.Error().Err(err).Str("remote", host.Remote).Str("path", subUrlPath).Int("port", host.Port).Msg("Could not complete request")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

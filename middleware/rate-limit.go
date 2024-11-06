@@ -45,13 +45,13 @@ func (l *Limiter) Manage() {
 	for {
 		select {
 		case ip := <-l.rateChannel:
-			l.rwLock.Lock()
-			if counter, ok := l.currentBuckets[ip]; ok {
-				counter.Add(1)
-			} else {
-				counter := &atomic.Int64{}
-				l.currentBuckets[ip] = counter
+			if l.AddIfExists(ip) {
+				break
 			}
+
+			l.rwLock.Lock()
+			counter := &atomic.Int64{}
+			l.currentBuckets[ip] = counter
 			l.rwLock.Unlock()
 		case <-l.refillTicker.C:
 			l.rwLock.RLock()
@@ -66,6 +66,7 @@ func (l *Limiter) Manage() {
 			l.rwLock.RUnlock()
 			log.Trace().Msg("Refreshed Limits")
 		case <-l.cleanupTicker.C:
+			start := time.Now()
 			l.rwLock.Lock()
 			deletedBuckets := 0
 			for ip := range l.currentBuckets {
@@ -75,10 +76,22 @@ func (l *Limiter) Manage() {
 				}
 			}
 			l.rwLock.Unlock()
-			log.Debug().Int("deleted_buckets", deletedBuckets).Msg("Cleaned up Buckets")
+			duration := time.Since(start)
+			log.Debug().Str("duration", duration.String()).Int("deleted_buckets", deletedBuckets).Msg("Cleaned up Buckets")
 		}
 	}
+}
 
+// Adds one if ip already exists and returns true
+// If ip doesnt yet exist only returns false
+func (l *Limiter) AddIfExists(ip string) bool {
+	l.rwLock.RLock()
+	defer l.rwLock.RUnlock()
+	if counter, ok := l.currentBuckets[ip]; ok {
+		counter.Add(1)
+		return true
+	}
+	return false
 }
 
 func (l *Limiter) RateLimiter(next http.Handler) http.Handler {

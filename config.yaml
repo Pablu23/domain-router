@@ -7,7 +7,7 @@ server:
 
 
 logging:
-  level: info
+  level: debug
   # Pretty print for human consumption otherwise json
   pretty: true
   # Log incoming requests
@@ -25,11 +25,11 @@ rateLimit:
   # How many requests per ip adress are allowed
   bucketSize: 50
   # How many requests per ip address are refilled
-  refillSize: 10
+  refillSize: 50
   # How often requests per ip address are refilled
-  refillTime: 1m
+  refillTime: 30s
   # How often Ip Addresses get cleaned up (only ip addresses with max allowed requests are cleaned up)
-  cleanupTime: 5m
+  cleanupTime: 45s
 
 
 hosts:
