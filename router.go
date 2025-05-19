@@ -66,24 +66,28 @@ func (router *Router) Healthz(w http.ResponseWriter, r *http.Request) {
 		}
 
 		healthy := true
-		var url string
-		if host.Secure {
-			url = fmt.Sprintf("https://%s:%d/healthz", host.Remotes, host.Port)
-		} else {
-			url = fmt.Sprintf("http://%s:%d/healthz", host.Remotes, host.Port)
-		}
+		for _, remote := range host.Remotes {
+			var url string
+			if host.Secure {
+				url = fmt.Sprintf("https://%s:%d/healthz", remote, host.Port)
+			} else {
+				url = fmt.Sprintf("http://%s:%d/healthz", remote, host.Port)
+			}
 
-		res, err := router.client.Get(url)
-		if err != nil {
-			log.Warn().Err(err).Int("port", host.Port).Msg("Unhealthy")
-			healthy = false
+			res, err := router.client.Get(url)
+			if err != nil {
+				log.Warn().Err(err).Int("port", host.Port).Msg("Unhealthy")
+				healthy = false
+			} else if res.StatusCode != 200 {
+				healthy = false
+			}
 		}
 
 		for _, domain := range host.Domains {
 			result = append(result, struct {
 				Domain  string
 				Healthy bool
-			}{domain, healthy && res.StatusCode == 200})
+			}{domain, healthy})
 		}
 	}
 
