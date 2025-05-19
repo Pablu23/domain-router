@@ -7,35 +7,45 @@ import (
 	"io"
 	"net/http"
 	"net/http/httputil"
+	"sync/atomic"
 
-	"github.com/pablu23/domain-router/util"
 	"github.com/rs/zerolog/log"
 )
 
 type Router struct {
 	config  *Config
-	domains *util.ImmutableMap[string, Host]
+	domains *ThreadMap[string, Host]
 	client  *http.Client
 }
 
 type Host struct {
-	Port   int
-	Remote string
-	Secure bool
+	Port    int
+	Remotes []string
+	Secure  bool
+	Current *atomic.Uint32
 }
 
 func New(config *Config, client *http.Client) Router {
 	m := make(map[string]Host)
 	for _, host := range config.Hosts {
 		for _, domain := range host.Domains {
-			m[domain] = Host{host.Port, host.Remote, host.Secure}
+			m[domain] = Host{host.Port, host.Remotes, host.Secure, &atomic.Uint32{}}
 		}
 	}
 
 	return Router{
 		config:  config,
-		domains: util.NewImmutableMap(m),
+		domains: NewThreadMap(m),
 		client:  client,
+	}
+}
+
+func (router *Router) roundRobin(host *Host) {
+	l := len(host.Remotes)
+	if l > 1 && host.Current.Load()+1 < uint32(l) {
+		host.Current.Add(1)
+	} else if l > 1 {
+		host.Current.Store(0)
 	}
 }
 
@@ -58,9 +68,9 @@ func (router *Router) Healthz(w http.ResponseWriter, r *http.Request) {
 		healthy := true
 		var url string
 		if host.Secure {
-			url = fmt.Sprintf("https://%s:%d/healthz", host.Remote, host.Port)
+			url = fmt.Sprintf("https://%s:%d/healthz", host.Remotes, host.Port)
 		} else {
-			url = fmt.Sprintf("http://%s:%d/healthz", host.Remote, host.Port)
+			url = fmt.Sprintf("http://%s:%d/healthz", host.Remotes, host.Port)
 		}
 
 		res, err := router.client.Get(url)
@@ -89,13 +99,13 @@ func (router *Router) Healthz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func createRequest(r *http.Request, host *Host) (*http.Request, error) {
+func createRequest(r *http.Request, host *Host, remote string) (*http.Request, error) {
 	subUrlPath := r.URL.RequestURI()
 	var url string
 	if host.Secure {
-		url = fmt.Sprintf("https://%s:%d%s", host.Remote, host.Port, subUrlPath)
+		url = fmt.Sprintf("https://%s:%d%s", remote, host.Port, subUrlPath)
 	} else {
-		url = fmt.Sprintf("http://%s:%d%s", host.Remote, host.Port, subUrlPath)
+		url = fmt.Sprintf("http://%s:%d%s", remote, host.Port, subUrlPath)
 	}
 
 	req, err := http.NewRequest(r.Method, url, r.Body)
@@ -165,9 +175,12 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := createRequest(r, &host)
+	remote := host.Remotes[host.Current.Load()]
+	go router.roundRobin(&host)
+
+	req, err := createRequest(r, &host, remote)
 	if err != nil {
-		log.Error().Err(err).Bool("secure", host.Secure).Str("remote", host.Remote).Int("port", host.Port).Msg("Could not create request")
+		log.Error().Err(err).Bool("secure", host.Secure).Str("remote", remote).Int("port", host.Port).Msg("Could not create request")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -179,7 +192,7 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 
 	res, err := router.client.Do(req)
 	if err != nil {
-		log.Error().Err(err).Str("remote", host.Remote).Int("port", host.Port).Msg("Could not complete request")
+		log.Error().Err(err).Str("remote", remote).Int("port", host.Port).Msg("Could not complete request")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

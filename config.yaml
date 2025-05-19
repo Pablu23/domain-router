@@ -34,7 +34,9 @@ rateLimit:
 
 hosts:
     # Remote address to request
-  - remote: localhost
+  - remotes: 
+      - localhost
+      - 192.168.2.154
     # Port on which to request
     port: 8181
     # Health check if announce is true
@@ -44,13 +46,16 @@ hosts:
       - localhost
       - test.localhost
 
-  - remote: localhost
+  - remotes: 
+      - localhost
     port: 8282
     public: false
     domains:
       - private.localhost
 
-  - remote: www.google.com
+  - remotes: 
+      - www.google.com
+      - localhost 
     port: 443
     public: false
     # Uses https under the hood to communicate with the remote host

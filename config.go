@@ -15,7 +15,7 @@ type Config struct {
 	} `yaml:"server"`
 	Hosts []struct {
 		Port    int      `yaml:"port"`
-		Remote  string   `yaml:"remote"`
+		Remotes  []string `yaml:"remotes"`
 		Domains []string `yaml:"domains"`
 		Public  bool     `yaml:"public"`
 		Secure  bool     `yaml:"secure"`
