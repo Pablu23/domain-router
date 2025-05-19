@@ -76,7 +76,7 @@ func (router *Router) Healthz(w http.ResponseWriter, r *http.Request) {
 
 			res, err := router.client.Get(url)
 			if err != nil {
-				log.Warn().Err(err).Int("port", host.Port).Msg("Unhealthy")
+				log.Warn().Err(err).Str("remote", remote).Int("port", host.Port).Msg("Unhealthy")
 				healthy = false
 			} else if res.StatusCode != 200 {
 				healthy = false
