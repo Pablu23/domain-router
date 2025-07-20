@@ -9,6 +9,9 @@ server:
       email: me@pablu.de
       keyFile: userKey.key
       caDirUrl: https://192.168.2.154:14000/dir
+      tlsAlpn01Port: 5001 
+      http01Port: 5002
+      renewTime: 30s
 
 
 logging:

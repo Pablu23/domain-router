@@ -70,12 +70,15 @@ func main() {
 		}
 
 		if config.Server.Ssl.Acme.Enabled {
-			err := acme.SetupAcme(config)
+			acmeRenewer, err := acme.SetupAcme(config)
 			if err != nil {
 				log.Fatal().Err(err).Msg("unable to setup acme")
 			}
-		}
 
+			go func() {
+				acmeRenewer.RegisterTicker()
+			}()
+		}
 		log.Info().Int("port", config.Server.Port).Str("cert", config.Server.Ssl.CertFile).Str("key", config.Server.Ssl.KeyFile).Msg("Starting server")
 		err := server.ListenAndServeTLS("", "")
 		log.Fatal().Err(err).Str("cert", config.Server.Ssl.CertFile).Str("key", config.Server.Ssl.KeyFile).Int("port", config.Server.Port).Msg("Could not start server")

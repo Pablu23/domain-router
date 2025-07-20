@@ -12,10 +12,13 @@ type Config struct {
 			CertFile string `yaml:"certFile"`
 			KeyFile  string `yaml:"keyFile"`
 			Acme     struct {
-				Enabled  bool   `yaml:"enabled"`
-				Email    string `yaml:"email"`
-				KeyFile  string `yaml:"keyFile"`
-				CADirURL string `yaml:"caDirUrl"`
+				Enabled       bool   `yaml:"enabled"`
+				Email         string `yaml:"email"`
+				KeyFile       string `yaml:"keyFile"`
+				CADirURL      string `yaml:"caDirUrl"`
+				Http01Port    string `yaml:"http01Port"`
+				TlsAlpn01Port string `yaml:"tlsAlpn01Port"`
+				RenewTime     string `yaml:"renewTime"`
 			} `yaml:"acme"`
 		} `yaml:"ssl"`
 	} `yaml:"server"`
