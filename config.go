@@ -11,11 +11,17 @@ type Config struct {
 			Enabled  bool   `yaml:"enabled"`
 			CertFile string `yaml:"certFile"`
 			KeyFile  string `yaml:"keyFile"`
+			Acme     struct {
+				Enabled  bool   `yaml:"enabled"`
+				Email    string `yaml:"email"`
+				KeyFile  string `yaml:"keyFile"`
+				CADirURL string `yaml:"caDirUrl"`
+			} `yaml:"acme"`
 		} `yaml:"ssl"`
 	} `yaml:"server"`
 	Hosts []struct {
 		Port    int      `yaml:"port"`
-		Remotes  []string `yaml:"remotes"`
+		Remotes []string `yaml:"remotes"`
 		Domains []string `yaml:"domains"`
 		Public  bool     `yaml:"public"`
 		Secure  bool     `yaml:"secure"`

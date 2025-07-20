@@ -11,6 +11,7 @@ import (
 	"time"
 
 	domainrouter "github.com/pablu23/domain-router"
+	"github.com/pablu23/domain-router/acme"
 	"github.com/pablu23/domain-router/middleware"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -66,6 +67,13 @@ func main() {
 				}
 				return &cert, err
 			},
+		}
+
+		if config.Server.Ssl.Acme.Enabled {
+			err := acme.SetupAcme(config)
+			if err != nil {
+				log.Fatal().Err(err).Msg("unable to setup acme")
+			}
 		}
 
 		log.Info().Int("port", config.Server.Port).Str("cert", config.Server.Ssl.CertFile).Str("key", config.Server.Ssl.KeyFile).Msg("Starting server")

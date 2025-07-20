@@ -34,7 +34,6 @@ func NewLimiter(maxRequests int, refills int, refillInterval time.Duration, clea
 
 func (l *Limiter) Start() {
 	go l.Manage()
-	return
 }
 
 func (l *Limiter) UpdateCleanupTime(new time.Duration) {

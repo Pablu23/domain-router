@@ -4,6 +4,11 @@ server:
     enabled: true
     certFile: server.crt
     keyFile: server.key
+    acme:
+      enabled: true
+      email: me@pablu.de
+      keyFile: userKey.key
+      caDirUrl: https://192.168.2.154:14000/dir
 
 
 logging:
@@ -53,15 +58,15 @@ hosts:
     domains:
       - private.localhost
 
-  - remotes: 
-      - www.google.com
-      - localhost 
-    port: 443
-    public: false
-    # Uses https under the hood to communicate with the remote host
-    secure: true
-    domains:
-      - google.localhost
+  # - remotes: 
+  #     - www.google.com
+  #     - localhost 
+  #   port: 443
+  #   public: false
+  #   # Uses https under the hood to communicate with the remote host
+  #   secure: true
+  #   domains:
+  #     - google.localhost
 
 general:
   # Expose health endpoint, that requests health endpoints from hosts which are public
