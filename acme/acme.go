@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"net/http"
@@ -30,6 +31,10 @@ type Acme struct {
 	renewTicker  *time.Ticker
 }
 
+type CertDomainStorage struct {
+	Domains map[string]time.Time
+}
+
 func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 	acme := config.Server.Ssl.Acme
 
@@ -40,7 +45,8 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 
 	// Maybe this should be reconsidered, to create a new private Key / account per Acme request
 	var privateKey *ecdsa.PrivateKey
-	if _, err := os.Stat(acme.KeyFile); errors.Is(err, os.ErrNotExist) {
+
+	if _, err = os.Stat(acme.KeyFile); errors.Is(err, os.ErrNotExist) {
 		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			return nil, err
@@ -49,6 +55,8 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		if err != nil {
 			return nil, err
 		}
+	} else if err != nil {
+		return nil, err
 	} else {
 		keyBytes, err := os.ReadFile(acme.KeyFile)
 		if err != nil {
@@ -96,6 +104,45 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		domains = append(domains, host.Domains...)
 	}
 
+	ac := &Acme{
+		user:         &user,
+		client:       client,
+		domains:      domains,
+		certFilePath: config.Server.Ssl.CertFile,
+		keyFilePath:  config.Server.Ssl.KeyFile,
+		renewTicker:  time.NewTicker(d),
+	}
+
+	if _, err := os.Stat("data.json"); !errors.Is(err, os.ErrNotExist) {
+		file, err := os.Open("data.json")
+		if err != nil {
+			return nil, err
+		}
+
+		var data CertDomainStorage
+		err = json.NewDecoder(file).Decode(&data)
+		if err != nil {
+			return nil, err
+		}
+
+		mustRenew := false
+		for _, domain := range domains {
+			if reqTime, ok := data.Domains[domain]; ok {
+				if reqTime.Add(d).Before(time.Now()) {
+					mustRenew = true
+					break
+				}
+			}
+		}
+
+		if !mustRenew {
+			return ac, nil
+		}
+
+	} else if err != nil {
+		return nil, err
+	}
+
 	request := certificate.ObtainRequest{
 		Domains: domains,
 		Bundle:  true,
@@ -116,14 +163,27 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		return nil, err
 	}
 
-	return &Acme{
-		user:         &user,
-		client:       client,
-		domains:      domains,
-		certFilePath: config.Server.Ssl.CertFile,
-		keyFilePath:  config.Server.Ssl.KeyFile,
-		renewTicker:  time.NewTicker(d),
-	}, nil
+	dataDomains := make(map[string]time.Time)
+	now := time.Now()
+	for _, domain := range domains {
+		dataDomains[domain] = now
+	}
+
+	data := CertDomainStorage{
+		Domains: dataDomains,
+	}
+
+	file, err := os.Create("data.json")
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.NewEncoder(file).Encode(&data)
+	if err != nil {
+		return nil, err
+	}
+
+	return ac, nil
 }
 
 func (a *Acme) RenewAcme() error {
