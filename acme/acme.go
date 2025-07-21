@@ -32,6 +32,13 @@ type Acme struct {
 
 func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 	acme := config.Server.Ssl.Acme
+
+	d, err := time.ParseDuration(acme.RenewTime)
+	if err != nil {
+		return nil, err
+	}
+
+	// Maybe this should be reconsidered, to create a new private Key / account per Acme request
 	var privateKey *ecdsa.PrivateKey
 	if _, err := os.Stat(acme.KeyFile); errors.Is(err, os.ErrNotExist) {
 		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -109,11 +116,6 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		return nil, err
 	}
 
-	d, err := time.ParseDuration(acme.RenewTime)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Acme{
 		user:         &user,
 		client:       client,
@@ -150,10 +152,8 @@ func (a *Acme) RenewAcme() error {
 
 func (a *Acme) RegisterTicker() {
 	for {
-		select {
-		case <-a.renewTicker.C:
-			a.RenewAcme()
-		}
+		<-a.renewTicker.C
+		a.RenewAcme()
 	}
 }
 
