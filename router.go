@@ -119,6 +119,7 @@ func createRequest(r *http.Request, host *Host, remote string) (*http.Request, e
 
 	copyRequestHeader(r, req)
 	req.Header.Set("X-Forwarded-For", r.RemoteAddr)
+	req.Header.Set("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate")
 
 	for _, cookie := range r.Cookies() {
 		req.AddCookie(cookie)
