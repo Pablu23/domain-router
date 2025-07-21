@@ -113,7 +113,10 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		renewTicker:  time.NewTicker(d),
 	}
 
-	if _, err := os.Stat("data.json"); !errors.Is(err, os.ErrNotExist) {
+	_, err = os.Stat("data.json")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	} else if err == nil {
 		file, err := os.Open("data.json")
 		if err != nil {
 			return nil, err
@@ -138,9 +141,6 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		if !mustRenew {
 			return ac, nil
 		}
-
-	} else if err != nil {
-		return nil, err
 	}
 
 	request := certificate.ObtainRequest{
