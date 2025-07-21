@@ -128,8 +128,23 @@ func createRequest(r *http.Request, host *Host, remote string) (*http.Request, e
 	return req, nil
 }
 
+var etagHeaders = map[string]struct{}{
+	"ETag":                {},
+	"If-Modified-Since":   {},
+	"If-Match":            {},
+	"If-None-Match":       {},
+	"If-Range":            {},
+	"If-Unmodified-Since": {},
+}
+
 func copyRequestHeader(origin *http.Request, destination *http.Request) {
 	for name, values := range origin.Header {
+
+		// Skip etag Headers
+		if _, ok := etagHeaders[name]; ok {
+			continue
+		}
+
 		for _, value := range values {
 			destination.Header.Set(name, value)
 		}
