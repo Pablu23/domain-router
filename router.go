@@ -160,12 +160,9 @@ func applyResponseHeader(w http.ResponseWriter, res *http.Response) {
 	w.WriteHeader(res.StatusCode)
 }
 
-func (router *Router) applyCookies(w http.ResponseWriter, res *http.Response) {
+func applyCookies(w http.ResponseWriter, res *http.Response) {
 	cookies := res.Cookies()
 	for _, cookie := range cookies {
-		if router.config.Server.Ssl.Enabled {
-			cookie.Secure = true
-		}
 		http.SetCookie(w, cookie)
 	}
 }
@@ -226,7 +223,7 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	router.applyCookies(w, res)
+	applyCookies(w, res)
 	applyResponseHeader(w, res)
 
 	// Exit early because its a redirect
