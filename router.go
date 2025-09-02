@@ -157,11 +157,15 @@ func applyResponseHeader(w http.ResponseWriter, res *http.Response) {
 			w.Header().Set(name, value)
 		}
 	}
+	w.WriteHeader(res.StatusCode)
 }
 
-func applyCookies(w http.ResponseWriter, res *http.Response) {
+func (router *Router) applyCookies(w http.ResponseWriter, res *http.Response) {
 	cookies := res.Cookies()
 	for _, cookie := range cookies {
+		if router.config.Server.Ssl.Enabled {
+			cookie.Secure = true
+		}
 		http.SetCookie(w, cookie)
 	}
 }
@@ -222,15 +226,14 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	applyCookies(w, res)
+	router.applyCookies(w, res)
+	applyResponseHeader(w, res)
 
 	// Exit early because its a redirect
 	// Maybe this should be before applying cookies or after applying headers
 	if !handleLocation(w, r, res) {
 		return
 	}
-
-	applyResponseHeader(w, res)
 
 	err = applyBody(w, res)
 	if err != nil {
@@ -242,7 +245,7 @@ func (router *Router) Route(w http.ResponseWriter, r *http.Request) {
 
 func handleLocation(w http.ResponseWriter, r *http.Request, res *http.Response) bool {
 	if loc, err := res.Location(); err == nil {
-		http.Redirect(w, r, loc.RequestURI(), http.StatusFound)
+		http.Redirect(w, r, loc.String(), http.StatusFound)
 		return false
 	} else if !errors.Is(err, http.ErrNoLocation) {
 		log.Error().Err(err).Msg("Could not extract location")
