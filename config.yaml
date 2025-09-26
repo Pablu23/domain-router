@@ -5,7 +5,7 @@ server:
     certFile: server.crt
     keyFile: server.key
     acme:
-      enabled: true
+      enabled: false
       email: me@pablu.de
       keyFile: userKey.key
       caDirUrl: https://192.168.2.154:14000/dir
@@ -29,7 +29,7 @@ logging:
 
 
 rateLimit:
-  enabled: true
+  enabled: false
   # How many requests per ip adress are allowed
   bucketSize: 50
   # How many requests per ip address are refilled
@@ -44,7 +44,6 @@ hosts:
     # Remote address to request
   - remotes: 
       - localhost
-      - 192.168.2.154
     # Port on which to request
     port: 8181
     # Health check if announce is true
@@ -60,6 +59,14 @@ hosts:
     public: false
     domains:
       - private.localhost
+
+  - remotes:
+      - localhost
+    port: 5173
+    public: false
+    domains:
+      - hitstar.localhost
+      - hipstar.localhost
 
   # - remotes: 
   #     - www.google.com

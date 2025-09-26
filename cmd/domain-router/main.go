@@ -40,7 +40,7 @@ func main() {
 
 	router := domainrouter.New(config, client)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", router.Route)
+	mux.HandleFunc("/", router.ServeHTTP)
 
 	if config.General.AnnouncePublic {
 		h, err := url.JoinPath("/", config.General.HealthEndpoint)
