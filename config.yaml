@@ -15,7 +15,7 @@ server:
 
 
 logging:
-  level: debug
+  level: trace
   # Pretty print for human consumption otherwise json
   pretty: true
   # Log incoming requests
@@ -69,6 +69,12 @@ hosts:
     port: 46009
     domains:
       - chat.localhost
+
+  - remotes:
+      - localhost
+    port: 8080
+    domains:
+      - gorilla.localhost
 
   - remotes: 
       - www.google.com
