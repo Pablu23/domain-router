@@ -2,7 +2,6 @@ package domainrouter
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -53,61 +52,7 @@ func (router *Router) roundRobin(host *Host) {
 	}
 }
 
-func (router *Router) Healthz(w http.ResponseWriter, r *http.Request) {
-	if !router.config.General.AnnouncePublic {
-		http.NotFound(w, r)
-		return
-	}
-
-	result := make([]struct {
-		Domain  string
-		Healthy bool
-	}, 0)
-
-	for _, host := range router.config.Hosts {
-		if !host.Public {
-			continue
-		}
-
-		healthy := true
-		for _, remote := range host.Remotes {
-			var url string
-			if host.Secure {
-				url = fmt.Sprintf("https://%s:%d/healthz", remote, host.Port)
-			} else {
-				url = fmt.Sprintf("http://%s:%d/healthz", remote, host.Port)
-			}
-
-			res, err := router.client.Get(url)
-			if err != nil {
-				log.Warn().Err(err).Str("remote", remote).Int("port", host.Port).Msg("Unhealthy")
-				healthy = false
-			} else if res.StatusCode != 200 {
-				healthy = false
-			}
-		}
-
-		for _, domain := range host.Domains {
-			result = append(result, struct {
-				Domain  string
-				Healthy bool
-			}{domain, healthy})
-		}
-	}
-
-	data, err := json.Marshal(&result)
-	if err != nil {
-		log.Error().Err(err).Msg("Could not json encode Healthz")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Add("Content-Type", "application/json")
-	w.Write(data)
-	w.WriteHeader(http.StatusOK)
-}
-
-func rewriteRequestURL(r *http.Request, host *Host, remote string) error {
+func rewriteRequestURL(r *http.Request, host *Host, remote string, ) error {
 	subUrlPath := r.URL.RequestURI()
 	var uri string
 	if host.Secure {
@@ -172,6 +117,7 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if reqUpType != "" {
 		outreq.Header.Set("Connection", "Upgrade")
 		outreq.Header.Set("Upgrade", reqUpType)
+		log.Debug().Str("upgrade", reqUpType).Msg("Request upgrade")
 	}
 
 	stripClientProvidedXForwardHeaders(outreq.Header)
@@ -379,7 +325,7 @@ func upgradeType(header http.Header) string {
 }
 
 func dumpRequest(w http.ResponseWriter, r *http.Request) bool {
-	if e := log.Trace(); e.Enabled() && r.Method == "POST" {
+	if e := log.Trace(); e.Enabled() {
 		rDump, err := httputil.DumpRequest(r, true)
 		if err != nil {
 			log.Error().Err(err).Msg("Could not dump request")

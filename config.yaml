@@ -46,8 +46,6 @@ hosts:
       - localhost
     # Port on which to request
     port: 8181
-    # Health check if announce is true
-    public: true
     # Domains which get redirected to host
     domains:
       - localhost
@@ -56,30 +54,26 @@ hosts:
   - remotes: 
       - localhost
     port: 8282
-    public: false
     domains:
       - private.localhost
 
   - remotes:
       - localhost
     port: 5173
-    public: false
     domains:
       - hitstar.localhost
       - hipstar.localhost
 
-  # - remotes: 
-  #     - www.google.com
-  #     - localhost 
-  #   port: 443
-  #   public: false
-  #   # Uses https under the hood to communicate with the remote host
-  #   secure: true
-  #   domains:
-  #     - google.localhost
+  - remotes:
+      - 127.0.0.1
+    port: 46009
+    domains:
+      - chat.localhost
 
-general:
-  # Expose health endpoint, that requests health endpoints from hosts which are public
-  announce: true
-  # Path to health endpoint on router, is allowed to conflict with hosts, but overwrites specific host endpoint
-  healthz: healthz
+  - remotes: 
+      - www.google.com
+    port: 443
+    # Uses https under the hood to communicate with the remote host
+    secure: true
+    domains:
+      - google.localhost

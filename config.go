@@ -1,10 +1,6 @@
 package domainrouter
 
 type Config struct {
-	General struct {
-		AnnouncePublic bool   `yaml:"announce"`
-		HealthEndpoint string `yaml:"healthz"`
-	} `yaml:"general"`
 	Server struct {
 		Port int `yaml:"port"`
 		Ssl  struct {
@@ -26,7 +22,6 @@ type Config struct {
 		Port    int      `yaml:"port"`
 		Remotes []string `yaml:"remotes"`
 		Domains []string `yaml:"domains"`
-		Public  bool     `yaml:"public"`
 		Secure  bool     `yaml:"secure"`
 	} `yaml:"hosts"`
 	RateLimit struct {

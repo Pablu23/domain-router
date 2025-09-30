@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
@@ -41,15 +40,6 @@ func main() {
 	router := domainrouter.New(config, client)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", router.ServeHTTP)
-
-	if config.General.AnnouncePublic {
-		h, err := url.JoinPath("/", config.General.HealthEndpoint)
-		if err != nil {
-			log.Error().Err(err).Str("endpoint", config.General.HealthEndpoint).Msg("Could not create endpoint path")
-			h = "/healthz"
-		}
-		mux.HandleFunc(h, router.Healthz)
-	}
 
 	pipeline := configureMiddleware(config)
 
