@@ -22,6 +22,7 @@ func RequestLogger(next http.Handler) http.Handler {
 			Str("uri", r.RequestURI).
 			Str("method", r.Method).
 			Str("uuid", uuid).
+			Str("remote_address", r.RemoteAddr).
 			Msg("Received Request")
 
 		next.ServeHTTP(lrw, r)

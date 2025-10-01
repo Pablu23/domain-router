@@ -51,11 +51,11 @@ hosts:
       - localhost
       - test.localhost
 
-  - remotes: 
+  - remotes:
       - localhost
-    port: 8282
+    port: 8080
     domains:
-      - private.localhost
+      - api.hitstar.localhost
 
   - remotes:
       - localhost
@@ -63,23 +63,11 @@ hosts:
     domains:
       - hitstar.localhost
       - hipstar.localhost
+    rewrite:
+      "/api": api.hitstar.localhost
 
   - remotes:
       - 127.0.0.1
     port: 46009
     domains:
       - chat.localhost
-
-  - remotes:
-      - localhost
-    port: 8080
-    domains:
-      - gorilla.localhost
-
-  - remotes: 
-      - www.google.com
-    port: 443
-    # Uses https under the hood to communicate with the remote host
-    secure: true
-    domains:
-      - google.localhost

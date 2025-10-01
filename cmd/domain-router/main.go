@@ -101,6 +101,10 @@ func configureMiddleware(config *domainrouter.Config) middleware.Middleware {
 		middlewares = append(middlewares, middleware.RequestLogger)
 	}
 
+	metrics := middleware.NewMetrics(512, 1*time.Minute, "tmp_metrics.json")
+	go metrics.Manage()
+	middlewares = append(middlewares, metrics.RequestMetrics)
+
 	pipeline := middleware.Pipeline(middlewares...)
 	return pipeline
 }

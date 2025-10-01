@@ -24,17 +24,27 @@ type Router struct {
 }
 
 type Host struct {
-	Port    int
-	Remotes []string
-	Secure  bool
-	Current *atomic.Uint32
+	Port     int
+	Remotes  []string
+	Secure   bool
+	Current  *atomic.Uint32
+	Rewrites map[string]*Host
 }
 
 func New(config *Config, client *http.Client) Router {
 	m := make(map[string]Host)
 	for _, host := range config.Hosts {
 		for _, domain := range host.Domains {
-			m[domain] = Host{host.Port, host.Remotes, host.Secure, &atomic.Uint32{}}
+			curr := Host{host.Port, host.Remotes, host.Secure, &atomic.Uint32{}, make(map[string]*Host)}
+			m[domain] = curr
+
+			for subUrl, rewriteHost := range host.Rewrite {
+				rewrite, ok := m[rewriteHost]
+				if !ok {
+					panic("WIP: Rewrite location has to be defined before rewrite")
+				}
+				curr.Rewrites[subUrl] = &rewrite
+			}
 		}
 	}
 
@@ -85,6 +95,31 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Warn().Str("host", portLessHost).Msg("Could not find Host")
 		w.WriteHeader(http.StatusOK)
 		return
+	}
+
+	for subUrl, rewriteHost := range host.Rewrites {
+		parts := strings.Split(subUrl, "/")
+		requestParts := strings.Split(r.URL.Path, "/")
+
+		for i, part := range parts {
+			if !strings.EqualFold(part, requestParts[i]) {
+				break
+			}
+		}
+
+		slicedPath := "/" + strings.Join(requestParts[len(parts):], "/")
+
+		log.Info().
+			Str("old_host", strings.Join(host.Remotes, ", ")).
+			Str("new_host", strings.Join(rewriteHost.Remotes, ", ")).
+			Str("sub_url", subUrl).
+			Str("requested_path", r.URL.Path).
+			Str("new_path", slicedPath).
+			Msg("Rewriting matched url path to different remote")
+		
+		r.URL.Path = slicedPath
+		host = *rewriteHost
+		break
 	}
 
 	remote := host.Remotes[host.Current.Load()]

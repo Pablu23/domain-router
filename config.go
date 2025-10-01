@@ -19,10 +19,11 @@ type Config struct {
 		} `yaml:"ssl"`
 	} `yaml:"server"`
 	Hosts []struct {
-		Port    int      `yaml:"port"`
-		Remotes []string `yaml:"remotes"`
-		Domains []string `yaml:"domains"`
-		Secure  bool     `yaml:"secure"`
+		Port    int               `yaml:"port"`
+		Remotes []string          `yaml:"remotes"`
+		Domains []string          `yaml:"domains"`
+		Secure  bool              `yaml:"secure"`
+		Rewrite map[string]string `yaml:"rewrite"`
 	} `yaml:"hosts"`
 	RateLimit struct {
 		Enabled       bool   `yaml:"enabled"`
