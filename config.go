@@ -1,29 +1,28 @@
 package domainrouter
 
+type Location struct {
+
+}
+
 type Config struct {
 	Server struct {
-		Port int `yaml:"port"`
+		Port int `yaml:"port" kdl:"port"`
 		Ssl  struct {
-			Enabled  bool   `yaml:"enabled"`
-			CertFile string `yaml:"certFile"`
-			KeyFile  string `yaml:"keyFile"`
+			Enabled  bool   `yaml:"enabled" kdl:"enabled"`
+			CertFile string `yaml:"certFile" kdl:"cert-file"`
+			KeyFile  string `yaml:"keyFile" kdl:"key-file"`
 			Acme     struct {
-				Enabled       bool   `yaml:"enabled"`
-				Email         string `yaml:"email"`
-				KeyFile       string `yaml:"keyFile"`
-				CADirURL      string `yaml:"caDirUrl"`
-				Http01Port    string `yaml:"http01Port"`
-				TlsAlpn01Port string `yaml:"tlsAlpn01Port"`
-				RenewTime     string `yaml:"renewTime"`
-			} `yaml:"acme"`
-		} `yaml:"ssl"`
-	} `yaml:"server"`
-	Hosts []struct {
-		Port    int      `yaml:"port"`
-		Remotes []string `yaml:"remotes"`
-		Domains []string `yaml:"domains"`
-		Secure  bool     `yaml:"secure"`
-	} `yaml:"hosts"`
+				Enabled       bool   `yaml:"enabled" kdl:"enabled"`
+				Email         string `yaml:"email" kdl:"email"`
+				KeyFile       string `yaml:"keyFile" kdl:"key-file"`
+				CADirURL      string `yaml:"caDirUrl" kdl:"ca-dir-url"`
+				Http01Port    string `yaml:"http01Port" kdl:"http-01-port"`
+				TlsAlpn01Port string `yaml:"tlsAlpn01Port" kdl:"tls-apln01-port"`
+				RenewTime     string `yaml:"renewTime" kdl:"renew-time"`
+			} `yaml:"acme" kdl:"acme"`
+		} `yaml:"ssl" kdl:"ssl"`
+	} `yaml:"server" kdl:"server"`
+	
 	RateLimit struct {
 		Enabled       bool   `yaml:"enabled"`
 		BucketSize    int    `yaml:"bucketSize"`

@@ -1,0 +1,71 @@
+server {
+  port 443
+  ssl {
+    enabled true
+    cert-file "server.crt"
+    key-file "server.key"
+
+    acme {
+      email "me@pablu.de"
+      key-file "userKey.key"
+      ca-dir-url "https://192.168.2.154:14000/dir"
+      tls-alpn01-port 5001
+      http-01-port 5002
+      renew-time "30s"
+    }
+  }
+}
+
+logging {
+  level "trace"
+  pretty true
+  requests true
+  file {
+    enabled false
+    max-age 14
+    max-backups 10
+    path "~/logs/router"
+  }
+}
+
+rate-limit {
+  enabled false
+  bucket-size 50
+  refill-size 50
+  refill-time "30s"
+  cleanup-time "45s"
+}
+
+location "test.localhost" "localhost" {
+  port 8181
+  remote "localhost"
+}
+
+location "private.localhost" {
+  port 8282
+  remote "localhost"
+}
+
+location "api.hitstar.localhost" {
+  port 9090
+  remote "localhost"
+}
+
+location "hitstar.localhost" "hipstar.localhost" {
+  port 5173
+  remote "localhost"
+  rewrite "/api" {
+    location "api.hitstar.localhost"
+  }
+  rewrite "/public" {
+    port 9090
+    remote "localhost"
+    keep-sub true
+  }
+}
+
+location "chat.localhost" {
+  port 46009
+  secure true
+  remote "localhost" "chat.pablu.de"
+}
