@@ -18,10 +18,11 @@ type Limiter struct {
 	bucketRefill   int
 	rwLock         *sync.RWMutex
 	rateChannel    chan string
+	stop           chan struct{}
 }
 
-func NewLimiter(maxRequests int, refills int, refillInterval time.Duration, cleanupInterval time.Duration) Limiter {
-	return Limiter{
+func NewLimiter(maxRequests int, refills int, refillInterval time.Duration, cleanupInterval time.Duration) *Limiter {
+	return &Limiter{
 		currentBuckets: make(map[string]*atomic.Int64),
 		bucketSize:     maxRequests,
 		refillTicker:   time.NewTicker(refillInterval),
@@ -32,12 +33,13 @@ func NewLimiter(maxRequests int, refills int, refillInterval time.Duration, clea
 	}
 }
 
-func (l *Limiter) Start() {
-	go l.Manage()
-}
-
 func (l *Limiter) UpdateCleanupTime(new time.Duration) {
 	l.cleanupTicker.Reset(new)
+}
+
+func (l *Limiter) Stop() {
+	l.stop <- struct{}{}
+	log.Info().Msg("Stopped Ratelimits")
 }
 
 func (l *Limiter) Manage() {
@@ -77,6 +79,8 @@ func (l *Limiter) Manage() {
 			l.rwLock.Unlock()
 			duration := time.Since(start)
 			log.Debug().Str("duration", duration.String()).Int("deleted_buckets", deletedBuckets).Msg("Cleaned up Buckets")
+		case <- l.stop:
+			return
 		}
 	}
 }
@@ -93,7 +97,7 @@ func (l *Limiter) AddIfExists(ip string) bool {
 	return false
 }
 
-func (l *Limiter) RateLimiter(next http.Handler) http.Handler {
+func (l *Limiter) Use(next http.Handler) http.Handler {
 	log.Info().Int("bucket_size", l.bucketSize).Int("bucket_refill", l.bucketRefill).Msg("Enabling Ratelimits")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		addr := strings.Split(r.RemoteAddr, ":")[0]

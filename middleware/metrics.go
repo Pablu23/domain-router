@@ -17,6 +17,7 @@ type Metrics struct {
 	endpointMetrics []EndpointMetrics
 	ticker          *time.Ticker
 	file            string
+	stop            chan bool
 }
 
 type EndpointMetrics struct {
@@ -44,7 +45,7 @@ func NewMetrics(bufferSize int, flushTimeout time.Duration, file string) *Metric
 	}
 }
 
-func (m *Metrics) RequestMetrics(next http.Handler) http.Handler {
+func (m *Metrics) Use(next http.Handler) http.Handler {
 	log.Info().Msg("Enabling Request Metrics")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -71,6 +72,8 @@ func (m *Metrics) Manage() {
 			m.calculateDuration(rm)
 		case <-m.ticker.C:
 			m.Flush()
+		case <-m.stop:
+			return
 		}
 	}
 }
@@ -128,4 +131,14 @@ func (m *Metrics) Flush() {
 	}
 
 	log.Info().Str("file", m.file).Int("count", len(a)).Msg("Completed Metrics flush")
+}
+
+func (m *Metrics) Stop() {
+	log.Info().Msg("Stopping Request Metrics")
+	for len(m.c) > 0 {
+		rm := <- m.c
+		m.calculateDuration(rm)
+	}
+	m.Flush()
+	log.Info().Msg("Stopped Request Metrics")
 }

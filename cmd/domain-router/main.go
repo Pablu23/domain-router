@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	domainrouter "github.com/pablu23/domain-router"
@@ -37,16 +42,31 @@ func main() {
 		},
 	}
 
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	router := domainrouter.New(config, client)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", router.ServeHTTP)
 
 	pipeline := configureMiddleware(config)
 
+	pipeline.Manage()
 	server := http.Server{
-		Addr:    fmt.Sprintf(":%d", config.Server.Port),
-		Handler: pipeline(mux),
+		Addr: fmt.Sprintf(":%d", config.Server.Port),
+		// this is rather bad looking
+		Handler: pipeline.Use()(mux),
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		<-sigs
+		log.Info().Msg("Stopping server")
+		server.Shutdown(context.Background())
+		pipeline.Stop()
+		wg.Done()
+	}()
 
 	if config.Server.Ssl.Enabled {
 		server.TLSConfig = &tls.Config{
@@ -71,16 +91,23 @@ func main() {
 		}
 		log.Info().Int("port", config.Server.Port).Str("cert", config.Server.Ssl.CertFile).Str("key", config.Server.Ssl.KeyFile).Msg("Starting server")
 		err := server.ListenAndServeTLS("", "")
-		log.Fatal().Err(err).Str("cert", config.Server.Ssl.CertFile).Str("key", config.Server.Ssl.KeyFile).Int("port", config.Server.Port).Msg("Could not start server")
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal().Err(err).Str("cert", config.Server.Ssl.CertFile).Str("key", config.Server.Ssl.KeyFile).Int("port", config.Server.Port).Msg("Could not start server")
+		}
 	} else {
 		log.Info().Int("port", config.Server.Port).Msg("Starting server")
 		err := server.ListenAndServe()
-		log.Fatal().Err(err).Int("port", config.Server.Port).Msg("Could not start server")
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal().Err(err).Int("port", config.Server.Port).Msg("Could not start server")
+		}
 	}
+
+	wg.Wait()
+	log.Info().Msg("Server shutdown completly, have a nice day")
 }
 
-func configureMiddleware(config *domainrouter.Config) middleware.Middleware {
-	middlewares := make([]middleware.Middleware, 0)
+func configureMiddleware(config *domainrouter.Config) *middleware.Pipeline {
+	pipeline := middleware.NewPipeline()
 
 	if config.RateLimit.Enabled {
 		refillTicker, err := time.ParseDuration(config.RateLimit.RefillTicker)
@@ -93,19 +120,16 @@ func configureMiddleware(config *domainrouter.Config) middleware.Middleware {
 			log.Fatal().Err(err).Str("cleanup", config.RateLimit.CleanupTicker).Msg("Could not parse cleanup Ticker")
 		}
 		limiter := middleware.NewLimiter(config.RateLimit.BucketSize, config.RateLimit.BucketRefill, refillTicker, cleanupTicker)
-		limiter.Start()
-		middlewares = append(middlewares, limiter.RateLimiter)
+		pipeline.AddMiddleware(limiter)
 	}
 
 	if config.Logging.Requests {
-		middlewares = append(middlewares, middleware.RequestLogger)
+		pipeline.AddMiddleware(&middleware.RequestLogger{})
 	}
 
 	metrics := middleware.NewMetrics(512, 1*time.Minute, "tmp_metrics.json")
-	go metrics.Manage()
-	middlewares = append(middlewares, metrics.RequestMetrics)
+	pipeline.AddMiddleware(metrics)
 
-	pipeline := middleware.Pipeline(middlewares...)
 	return pipeline
 }
 

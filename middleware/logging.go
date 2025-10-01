@@ -9,7 +9,16 @@ import (
 	"github.com/urfave/negroni"
 )
 
-func RequestLogger(next http.Handler) http.Handler {
+type RequestLogger struct{}
+
+func (_ *RequestLogger) Stop() {
+	log.Info().Msg("Stopped Logging")
+}
+
+func (_ *RequestLogger) Manage() {
+}
+
+func (_ *RequestLogger) Use(next http.Handler) http.Handler {
 	log.Info().Msg("Enabling Logging")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
