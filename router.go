@@ -98,16 +98,22 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for subUrl, rewriteHost := range host.Rewrites {
-		parts := strings.Split(subUrl, "/")
-		requestParts := strings.Split(r.URL.Path, "/")
+		// parts := strings.Split(subUrl, "/")
+		// requestParts := strings.Split(r.URL.Path, "/")
+		//
+		// for i, part := range parts {
+		// 	if !strings.EqualFold(part, requestParts[i]) {
+		// 		break
+		// 	}
+		// }
+		//
+		// slicedPath := "/" + strings.Join(requestParts[len(parts):], "/")
 
-		for i, part := range parts {
-			if !strings.EqualFold(part, requestParts[i]) {
-				break
-			}
+		if !strings.HasPrefix(r.URL.Path, subUrl) {
+			break
 		}
 
-		slicedPath := "/" + strings.Join(requestParts[len(parts):], "/")
+		slicedPath, _ := strings.CutPrefix(r.URL.Path, subUrl)
 
 		log.Info().
 			Str("old_host", strings.Join(host.Remotes, ", ")).
