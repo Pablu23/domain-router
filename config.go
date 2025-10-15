@@ -43,4 +43,10 @@ type Config struct {
 			MaxBackups int    `yamls:"maxBackups"`
 		} `yaml:"file"`
 	} `yaml:"logging"`
+	Metrics struct {
+		Enabled       bool   `yaml:"enabled"`
+		File          string `yaml:"file"`
+		BufferSize    int    `yaml:"bufferSize"`
+		FlushInterval string `yaml:"flushInterval"`
+	} `yaml:"metrics"`
 }

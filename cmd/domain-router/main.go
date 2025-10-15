@@ -61,11 +61,11 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		<-sigs
 		log.Info().Msg("Stopping server")
 		server.Shutdown(context.Background())
 		pipeline.Stop()
-		wg.Done()
 	}()
 
 	if config.Server.Ssl.Enabled {
@@ -127,8 +127,14 @@ func configureMiddleware(config *domainrouter.Config) *middleware.Pipeline {
 		pipeline.AddMiddleware(&middleware.RequestLogger{})
 	}
 
-	metrics := middleware.NewMetrics(512, 1*time.Minute, "tmp_metrics.json")
-	pipeline.AddMiddleware(metrics)
+	if config.Metrics.Enabled {
+		flushInterval, err := time.ParseDuration(config.Metrics.FlushInterval)
+		if err != nil {
+			log.Fatal().Err(err).Str("flush_interval", config.Metrics.FlushInterval).Msg("Could not parse FlushInterval")
+		}
+		metrics := middleware.NewMetrics(config.Metrics.BufferSize, flushInterval, config.Metrics.File)
+		pipeline.AddMiddleware(metrics)
+	}
 
 	return pipeline
 }

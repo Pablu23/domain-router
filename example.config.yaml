@@ -1,0 +1,61 @@
+server:
+  port: 80
+  ssl:
+    enabled: false
+    certFile: server.crt
+    keyFile: server.key
+    acme:
+      enabled: false
+      email: user@host.dev
+      keyFile: userKey.key
+      caDirUrl: https://localhost:14000/dir
+      tlsAlpn01Port: 5001
+      http01Port: 5002
+      renewTime: 30s
+
+logging:
+  level: info
+  # Pretty print for human consumption otherwise json
+  pretty: true
+  # Log incoming requests
+  requests: true
+  # Log to file aswell as stderr
+  file:
+    enabled: false
+    maxAge: 14
+    maxBackups: 10
+    path: ~/logs/router
+
+rateLimit:
+  enabled: false
+  # How many requests per ip adress are allowed
+  bucketSize: 50
+  # How many requests per ip address are refilled
+  refillSize: 50
+  # How often requests per ip address are refilled
+  refillTime: 30s
+  # How often Ip Addresses get cleaned up (only ip addresses with max allowed requests are cleaned up)
+  cleanupTime: 45s
+
+# Experimental
+metrics:
+  enabled: false
+  flushInterval: 1h
+  bufferSize: 512
+  file: ~/metrics.json
+
+hosts:
+  - remotes:
+      - 127.0.0.1
+    port: 3000
+    domains:
+      - api.hitstar.xyz
+
+  - remotes:
+      - 127.0.0.1
+    port: 5173
+    domains:
+      - localhost
+      - hitstar.xyz
+    rewrite:
+      "/api": api.hitstar.xyz

@@ -130,7 +130,7 @@ func (m *Metrics) Flush() {
 		return
 	}
 
-	log.Info().Str("file", m.file).Int("count", len(a)).Msg("Completed Metrics flush")
+	log.Debug().Str("file", m.file).Int("count", len(a)).Msg("Completed Metrics flush")
 }
 
 func (m *Metrics) Stop() {
