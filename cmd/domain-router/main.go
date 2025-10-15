@@ -68,7 +68,10 @@ func main() {
 		defer cancel()
 
 		server.Shutdown(ctx)
+		log.Info().Msg("Http Server stopped")
+		log.Info().Msg("Stopping pipeline")
 		pipeline.Stop(ctx)
+		log.Info().Msg("Pipeline stopped")
 	}()
 
 	if config.Server.Ssl.Enabled {

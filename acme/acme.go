@@ -20,6 +20,7 @@ import (
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
 	domainrouter "github.com/pablu23/domain-router"
+	"github.com/rs/zerolog/log"
 )
 
 type Acme struct {
@@ -32,7 +33,8 @@ type Acme struct {
 }
 
 type CertDomainStorage struct {
-	Domains map[string]time.Time
+	IsUserRegistered bool
+	Domains          map[string]time.Time
 }
 
 func SetupAcme(config *domainrouter.Config) (*Acme, error) {
@@ -107,6 +109,7 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		renewTicker:  time.NewTicker(d),
 	}
 
+	isUserRegistered := false
 	_, err = os.Stat("data.json")
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
@@ -121,6 +124,7 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		if err != nil {
 			return nil, err
 		}
+		isUserRegistered = data.IsUserRegistered
 
 		mustRenew := false
 		for _, domain := range domains {
@@ -138,6 +142,24 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		if !mustRenew {
 			return ac, nil
 		}
+	}
+
+	if !isUserRegistered {
+		log.Debug().Str("user", user.Email).Msg("Registering new User")
+		reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+		if err != nil {
+			return nil, err
+		}
+
+		user.Registration = reg
+	} else {
+		log.Debug().Str("user", user.Email).Msg("Resolving registration by Key")
+		reg, err := client.Registration.ResolveAccountByKey()
+		if err != nil {
+			return nil, err
+		}
+
+		user.Registration = reg
 	}
 
 	request := certificate.ObtainRequest{
@@ -166,8 +188,10 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		dataDomains[domain] = now
 	}
 
+	// User registration is hella scuffed
 	data := CertDomainStorage{
-		Domains: dataDomains,
+		Domains:          dataDomains,
+		IsUserRegistered: true,
 	}
 
 	file, err := os.Create("data.json")
@@ -184,17 +208,11 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 }
 
 func (a *Acme) RenewAcme() error {
-	reg, err := a.client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
-	if err != nil {
-		return err
-	}
 
-	a.user.Registration = reg
 	request := certificate.ObtainRequest{
 		Domains: a.domains,
 		Bundle:  true,
 	}
-
 	certificates, err := a.client.Certificate.Obtain(request)
 	if err != nil {
 		return err
