@@ -93,12 +93,6 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 		return nil, err
 	}
 
-	reg, err := client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
-	if err != nil {
-		return nil, err
-	}
-	user.Registration = reg
-
 	domains := make([]string, 0)
 	for _, host := range config.Hosts {
 		domains = append(domains, host.Domains...)
@@ -135,6 +129,9 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 					mustRenew = true
 					break
 				}
+			} else {
+				mustRenew = true
+				break
 			}
 		}
 
@@ -187,6 +184,12 @@ func SetupAcme(config *domainrouter.Config) (*Acme, error) {
 }
 
 func (a *Acme) RenewAcme() error {
+	reg, err := a.client.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
+	if err != nil {
+		return err
+	}
+
+	a.user.Registration = reg
 	request := certificate.ObtainRequest{
 		Domains: a.domains,
 		Bundle:  true,
