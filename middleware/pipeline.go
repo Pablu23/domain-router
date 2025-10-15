@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"slices"
 )
@@ -8,7 +9,7 @@ import (
 type Middleware interface {
 	Use(http.Handler) http.Handler
 	Manage()
-	Stop()
+	Stop(context.Context)
 }
 
 type Pipeline struct {
@@ -33,9 +34,9 @@ func (p *Pipeline) Use() func(http.Handler) http.Handler {
 	}
 }
 
-func (p *Pipeline) Stop() {
+func (p *Pipeline) Stop(ctx context.Context) {
 	for _, m := range p.middleware {
-		m.Stop()
+		m.Stop(ctx)
 	}
 }
 

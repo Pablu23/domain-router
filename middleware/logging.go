@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 
 type RequestLogger struct{}
 
-func (_ *RequestLogger) Stop() {
+func (_ *RequestLogger) Stop(ctx context.Context) {
 	log.Info().Msg("Stopped Logging")
 }
 

@@ -64,8 +64,11 @@ func main() {
 		defer wg.Done()
 		<-sigs
 		log.Info().Msg("Stopping server")
-		server.Shutdown(context.Background())
-		pipeline.Stop()
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		server.Shutdown(ctx)
+		pipeline.Stop(ctx)
 	}()
 
 	if config.Server.Ssl.Enabled {

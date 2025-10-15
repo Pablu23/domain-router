@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -17,7 +18,7 @@ type Metrics struct {
 	endpointMetrics []EndpointMetrics
 	ticker          *time.Ticker
 	file            string
-	stop            chan bool
+	stop            chan struct{}
 }
 
 type EndpointMetrics struct {
@@ -133,12 +134,19 @@ func (m *Metrics) Flush() {
 	log.Debug().Str("file", m.file).Int("count", len(a)).Msg("Completed Metrics flush")
 }
 
-func (m *Metrics) Stop() {
+func (m *Metrics) Stop(ctx context.Context) {
 	log.Info().Msg("Stopping Request Metrics")
 	for len(m.c) > 0 {
-		rm := <- m.c
-		m.calculateDuration(rm)
+		select {
+		case rm := <-m.c:
+			m.calculateDuration(rm)
+		case <-ctx.Done():
+			m.stop <- struct{}{}
+			log.Warn().Msg("Hard Stopped Request Metrics")
+			return
+		}
 	}
 	m.Flush()
+	m.stop <- struct{}{}
 	log.Info().Msg("Stopped Request Metrics")
 }

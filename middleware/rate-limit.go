@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"sync"
@@ -37,7 +38,7 @@ func (l *Limiter) UpdateCleanupTime(new time.Duration) {
 	l.cleanupTicker.Reset(new)
 }
 
-func (l *Limiter) Stop() {
+func (l *Limiter) Stop(ctx context.Context) {
 	l.stop <- struct{}{}
 	log.Info().Msg("Stopped Ratelimits")
 }
@@ -79,7 +80,7 @@ func (l *Limiter) Manage() {
 			l.rwLock.Unlock()
 			duration := time.Since(start)
 			log.Debug().Str("duration", duration.String()).Int("deleted_buckets", deletedBuckets).Msg("Cleaned up Buckets")
-		case <- l.stop:
+		case <-l.stop:
 			return
 		}
 	}
