@@ -19,7 +19,7 @@ import (
 	"github.com/go-acme/lego/v4/challenge/tlsalpn01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
-	domainrouter "github.com/pablu23/domain-router"
+	domainrouter "git.pablu.de/pablu/domain-router"
 	"github.com/rs/zerolog/log"
 )
 

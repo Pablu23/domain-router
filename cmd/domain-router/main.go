@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	domainrouter "github.com/pablu23/domain-router"
-	"github.com/pablu23/domain-router/acme"
-	"github.com/pablu23/domain-router/middleware"
+	domainrouter "git.pablu.de/pablu/domain-router"
+	"git.pablu.de/pablu/domain-router/acme"
+	"git.pablu.de/pablu/domain-router/middleware"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/natefinch/lumberjack.v2"

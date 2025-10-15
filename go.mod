@@ -1,4 +1,4 @@
-module github.com/pablu23/domain-router
+module git.pablu.de/pablu/domain-router
 
 go 1.23.0
 
@@ -7,7 +7,6 @@ toolchain go1.24.4
 require github.com/rs/zerolog v1.34.0
 
 require (
-	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/miekg/dns v1.1.67 // indirect
@@ -17,11 +16,9 @@ require (
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/tools v0.34.0 // indirect
-	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 )
 
 require (
-	github.com/go-acme/lego v2.7.2+incompatible
 	github.com/go-acme/lego/v4 v4.24.0
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-colorable v0.1.13 // indirect
